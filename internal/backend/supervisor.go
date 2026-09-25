@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -174,6 +175,26 @@ func (s *ManagedSupervisor) Supervise(ctx context.Context, request Request) (ret
 	}
 	if err := ctx.Err(); err != nil {
 		return err
+	}
+	// 源码检出可以显式使用 managed 启动 Runtime；其 app-root 同时就是源码根，
+	// 复用 development 执行器，发布包的 <app-root>\repo 布局保持不变。
+	if mode == ModeManaged && isSourceRepositoryRoot(s.layout.AppRoot()) {
+		mode = ModeDevelopment
+		request.Mode = mode
+		request.DevelopmentRepo = s.layout.AppRoot()
+		request.SourceRepository = true
+	}
+	// 隐式端口在进程间串行分配，直到前一个实例的后端完成绑定。
+	if !request.PortExplicit {
+		lease, err := acquirePortAllocation(ctx)
+		if err != nil {
+			return newError(protocol.CodeBackendSpawnFailed, protocol.StageBackendSpawn, "无法协调受监督端口分配", nil, err)
+		}
+		if lease != nil {
+			emitter := &portLeaseEmitter{EventEmitter: request.Emitter, lease: lease}
+			request.Emitter = emitter
+			defer func() { returnErr = errors.Join(returnErr, emitter.release()) }()
+		}
 	}
 	port, err := resolveSupervisedPort(request, mode)
 	if err != nil {
@@ -455,6 +476,23 @@ func (s *ManagedSupervisor) Supervise(ctx context.Context, request Request) (ret
 		}
 		return errors.Join(cleanup.err, withFailureDetailsExtra(primary, logger, proc, cleanup.details))
 	}
+}
+
+func isSourceRepositoryRoot(root string) bool {
+	for _, name := range []string{"main.py", "pyproject.toml", ".venv"} {
+		info, err := os.Stat(filepath.Join(root, name))
+		if err != nil {
+			return false
+		}
+		if name == ".venv" {
+			if !info.IsDir() {
+				return false
+			}
+		} else if !info.Mode().IsRegular() {
+			return false
+		}
+	}
+	return true
 }
 
 func (s *ManagedSupervisor) recoverStaleTransaction(ctx context.Context) error {

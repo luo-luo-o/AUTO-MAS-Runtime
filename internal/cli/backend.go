@@ -133,6 +133,7 @@ func backendSuperviseCommand(deps *deps) *cobra.Command {
 						DevelopmentRepo:    repo,
 						ShutdownTimeout:    shutdownBudget,
 						Port:               supervisedPort,
+						PortExplicit:       cmd.Flags().Changed("port"),
 						Emitter:            &backendEventEmitter{emitter: emitter, control: control},
 						Control:            mailbox,
 						BeforeShutdown:     mailbox.BeforeShutdown,

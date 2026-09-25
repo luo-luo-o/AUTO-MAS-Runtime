@@ -63,7 +63,7 @@ func (s *ManagedSupervisor) normalizeDevelopmentRequest(ctx context.Context, req
 		}
 		return request, newError(protocol.CodeInvalidArgument, protocol.StageBackendSpawn, "Runtime 根目录身份不可确认", map[string]any{"field": "app_root", "reason": "identity_unknown"}, containmentErr)
 	}
-	if inside {
+	if inside && !(request.SourceRepository && strings.EqualFold(filepath.Clean(repo), appRoot)) {
 		return request, newError(protocol.CodeInvalidArgument, protocol.StageBackendSpawn, "Runtime 根目录不能位于开发源码目录内", map[string]any{"reason": "runtime_root_inside_development_repo"}, nil)
 	}
 	if err := inspectDevelopmentObject(ctx, filepath.Join(repo, "main.py"), false); err != nil {

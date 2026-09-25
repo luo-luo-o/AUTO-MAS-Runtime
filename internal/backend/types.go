@@ -25,6 +25,8 @@ type Request struct {
 	RuntimePID      uint32
 	Mode            Mode
 	DevelopmentRepo string
+	// SourceRepository 表示源码根以 managed 入口托管，仅允许 Runtime 根与源码根相同。
+	SourceRepository bool
 	// ShutdownTimeout 是从发出 POST /api/core/close 到进程退出的等待上限，
 	// 超时才收 Job（增补 1 C9）。CLI 由 --shutdown-timeout 提供，取值 1~120 秒；
 	// 为零或负数时回退 Dependencies.ShutdownTimeout。
@@ -32,7 +34,9 @@ type Request struct {
 	// Port 是受监督后端的监听端口（增补 1 C12）。CLI 由 --port 提供；为零时按模式
 	// 取缺省（managed 36163 / development 36164），越界映射 INVALID_ARGUMENT。
 	// 注入 uv 的 AUTO_MAS_SUPERVISED_PORT、健康检查地址、关闭地址与 baseUrl 全部由它派生。
-	Port               int
+	Port int
+	// PortExplicit 区分用户显式指定的端口与模式默认端口；默认端口被占用时仅后者允许回退。
+	PortExplicit       bool
 	Emitter            EventEmitter
 	Control            ControlReceiver
 	BeforeShutdown     func(string)
